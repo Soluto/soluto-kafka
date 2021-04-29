@@ -19,35 +19,39 @@ const packageDefinition = loadSync(PROTO_PATH, {
 });
 const ProtobufMessage = loadPackageDefinition(packageDefinition) as ProtobufMessage;
 
-const _callTarget = (run: any) => async (call: any, callback: any) => {
+const _callTarget = (run: any, handlerWrapper?: any) => async (call: any, callback: any) => {
     try {
-        const receivedTimestamp = Date.now();
-        const payload = JSON.parse(call.request.msgJson);
-        await run({
-            payload,
-            headers: {
-                recordOffset: parseInt(call.request.recordOffset) || -1,
-                recordTimestamp: parseInt(call.request.recordTimestamp) || -1,
-                topic: call.request.topic,
-                recordHeaders: call.request.headersJson ? JSON.parse(call.request.headersJson) : undefined,
-            },
-        });
-        callback(null, {statusCode: 200, receivedTimestamp, completedTimestamp: Date.now()});
+        handlerWrapper ? await handlerWrapper(() => handle(run,callback)) : await handle(run,callback);
     } catch (e) {
         callback(null, {statusCode: e.statusCode ?? e.status ?? 500});
     }
 };
 
-const getServer = (execute: any) => {
+const handle = async (run, callback) => {
+    const receivedTimestamp = Date.now();
+    const payload = JSON.parse(call.request.msgJson);
+    await run({
+        payload,
+        headers: {
+            recordOffset: parseInt(call.request.recordOffset) || -1,
+            recordTimestamp: parseInt(call.request.recordTimestamp) || -1,
+            topic: call.request.topic,
+            recordHeaders: call.request.headersJson ? JSON.parse(call.request.headersJson) : undefined,
+        },
+    });
+    callback(null, {statusCode: 200, receivedTimestamp, completedTimestamp: Date.now()});
+}
+
+const getServer = (execute: any, handlerWrapper?: any) => {
     const server = new Server();
     server.addService(ProtobufMessage.CallTarget.service, {
-        callTarget: _callTarget(execute),
+        callTarget: _callTarget(execute, handlerWrapper),
     });
     return server;
 };
 
-export const startServer = (port: string, execute: any) => {
-    const routeServer = getServer(execute);
+export const startServer = (port: string, execute: any, handlerWrapper?: any) => {
+    const routeServer = getServer(execute, handlerWrapper);
     routeServer.bind(`0.0.0.0:${port}`, ServerCredentials.createInsecure());
     routeServer.start();
     return routeServer;
