@@ -57,10 +57,10 @@ type TargetResponse = {
     statusCode: number;
 };
 
-let _client: any;
+let _clients: {[key: string]: any} = {};
 export const createClient = (url: string) => {
-    if (!_client) {
-        _client = new ProtobufMessage.CallTarget(url, credentials.createInsecure());
+    if (!_clients[url]) {
+        _clients[url] = new ProtobufMessage.CallTarget(url, credentials.createInsecure());
     }
     return {
         callTarget: <T>(
@@ -69,8 +69,8 @@ export const createClient = (url: string) => {
             topic?: string,
             headersJson?: string
         ): Promise<TargetResponse> =>
-            new Promise(resolve =>
-                _client.callTarget(
+            new Promise((resolve) =>
+                _clients[url].callTarget(
                     {msgJson: JSON.stringify(payload), recordOffset, topic, headersJson},
                     (_: any, responsePayload: TargetResponse) => resolve(responsePayload)
                 )
